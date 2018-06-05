@@ -1,5 +1,6 @@
 (ns clostrix.core
-  (:import [com.netflix.hystrix
+  (:import [rx Observable]
+           [com.netflix.hystrix
             HystrixCommand
             HystrixCommand$Setter
             HystrixCommandKey$Factory
@@ -101,10 +102,14 @@
 (defn command
   ([group-key f]
    (command group-key f {}))
-  ([group-key f opts]
+  ([group-key f {:keys [fallback] :as opts}]
    (proxy [HystrixCommand] [^HystrixCommand$Setter (command-setter group-key opts)]
      (run []
-       (f)))))
+       (f))
+     (getFallback []
+       (if fallback
+         (fallback)
+         (throw (UnsupportedOperationException. "No :fallback-fn provided")))))))
 
 (defn execute [^HystrixCommand command]
   (.execute command))
@@ -112,8 +117,7 @@
 (defn queue [^HystrixCommand command]
   (.queue command))
 
-(defmacro defcommand [command-var-name opts args & body]
-  `(def ~command-var-name (fn ~args
-                            (execute (command (str (ns-name *ns*))
-                                              #(do ~@body)
-                                              ~opts)))))
+(defmacro with-command [opts & body]
+  `(execute (command (str (ns-name *ns*))
+                     #(do ~@body)
+                     ~opts)))
