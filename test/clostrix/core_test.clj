@@ -40,7 +40,22 @@
                                        {:fallback (constantly 0)})]
       (is (zero? (execute cmd)))))
 
+  (testing "Cache"
+    (let [ctx (initialize-context)
+          ^HystrixCommand cmd (command "test-group-key"
+                                       (constantly 1)
+                                       {:cache-key "1"})]
+      (is (= 1 (execute cmd)))
+      (shutdown-context ctx)))
+
   (testing "with-command"
     (is (= 2 (with-command {:group-key "test-group-key"
                             :command-key "test-command-key"}
-               (inc 1))))))
+               (inc 1)))))
+
+  (testing "with-request-context"
+    (with-request-context
+      (let [^HystrixCommand cmd (command "test-group-key"
+                                         (constantly 1)
+                                         {:cache-key "1"})]
+        (is (= 1 (execute cmd)))))))

@@ -7,7 +7,8 @@
             HystrixCommandGroupKey$Factory
             HystrixThreadPoolKey$Factory
             HystrixCommandProperties
-            HystrixCommandProperties$Setter]))
+            HystrixCommandProperties$Setter]
+           [com.netflix.hystrix.strategy.concurrency HystrixRequestContext]))
 
 (defn command-properties [{:keys [execution-isolation-strategy
                                   ^Integer execution-timeout-in-milliseconds
@@ -102,14 +103,16 @@
 (defn command
   ([group-key f]
    (command group-key f {}))
-  ([group-key f {:keys [fallback] :as opts}]
+  ([group-key f {:keys [fallback cache-key] :as opts}]
    (proxy [HystrixCommand] [^HystrixCommand$Setter (command-setter group-key opts)]
      (run []
        (f))
      (getFallback []
        (if fallback
          (fallback)
-         (throw (UnsupportedOperationException. "No :fallback-fn provided")))))))
+         (throw (UnsupportedOperationException. "No :fallback provided"))))
+     (getCacheKey []
+       cache-key))))
 
 (defn execute [^HystrixCommand command]
   (.execute command))
@@ -117,7 +120,18 @@
 (defn queue [^HystrixCommand command]
   (.queue command))
 
+(defn initialize-context []
+  (HystrixRequestContext/initializeContext))
+
+(defn shutdown-context [^HystrixRequestContext context]
+  (.shutdown context))
+
 (defmacro with-command [opts & body]
   `(execute (command (str (ns-name *ns*))
                      #(do ~@body)
                      ~opts)))
+
+(defmacro with-request-context [& body]
+  `(let [ctx# (initialize-context)]
+     (do ~@body)
+     (shutdown-context ctx#)))
