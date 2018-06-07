@@ -42,10 +42,16 @@
 
   (testing "Cache"
     (let [ctx (initialize-context)
-          ^HystrixCommand cmd (command "test-group-key"
-                                       (constantly 1)
-                                       {:cache-key "1"})]
-      (is (= 1 (execute cmd)))
+          ^HystrixCommand cmd1 (command "test-group-key"
+                                        (constantly 1)
+                                        {:cache-key "1"})
+          ^HystrixCommand cmd2 (command "test-group-key"
+                                        (constantly 1)
+                                        {:cache-key "1"})]
+      (is (= 1 (execute cmd1)))
+      (is (not (.isResponseFromCache cmd1)))
+      (is (= 1 (execute cmd2)))
+      (is (.isResponseFromCache cmd2))
       (shutdown-context ctx)))
 
   (testing "with-command"
@@ -58,4 +64,9 @@
       (let [^HystrixCommand cmd (command "test-group-key"
                                          (constantly 1)
                                          {:cache-key "1"})]
-        (is (= 1 (execute cmd)))))))
+        (is (= 1 (execute cmd))))))
+
+  (testing "defcommand"
+    (defcommand cmd2 [x]
+      (inc x))
+    (is (= 2 (cmd2 1)))))

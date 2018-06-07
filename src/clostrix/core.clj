@@ -112,7 +112,8 @@
          (fallback)
          (throw (UnsupportedOperationException. "No :fallback provided"))))
      (getCacheKey []
-       cache-key))))
+       (when cache-key
+         cache-key)))))
 
 (defn execute [^HystrixCommand command]
   (.execute command))
@@ -131,7 +132,22 @@
                      #(do ~@body)
                      ~opts)))
 
+(defmacro defcommand [command-name args & body]
+  (let [hystrix (:hystrix (meta command-name))
+        group-key (str (ns-name *ns*))
+        opts (assoc hystrix :command-key (str command-name))
+        opts (if (:cache? hystrix)
+               (assoc opts :cache-key `(pr-str ~args))
+               opts)
+        opts (dissoc opts :cache?)]
+    `(defn ~command-name ~args
+       (execute (command ~group-key
+                         #(do ~@body)
+                         ~opts)))))
+
 (defmacro with-request-context [& body]
   `(let [ctx# (initialize-context)]
-     (do ~@body)
-     (shutdown-context ctx#)))
+     (try
+       ~@body
+       (finally
+         (shutdown-context ctx#)))))
